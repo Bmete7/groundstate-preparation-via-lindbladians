@@ -5,8 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "bqskit>=1.2.0",
     "numpy>=2.2.5",
     "pennylane>=0.41.1",
+    "qiskit>=2.0.0",
     "quspin>=1.0.0",
     "qutip>=5.1.1",
     "scipy>=1.15.3",

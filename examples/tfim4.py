@@ -26,7 +26,7 @@ from qutip import Qobj, mesolve
 from lindblad import Lindblad
 
 ##### define model parameters #####
-L = 4  # system size
+L = 2  # system size
 J = 1.0  # spin zz interaction
 g = 1.2  # z magnetic field strength
 ##### define spin model
@@ -76,6 +76,7 @@ psi0 = vt.copy()
 psi0 -= psi_GS * np.vdot(psi_GS, psi0)
 psi0 = psi0 / la.norm(psi0)
 print("|<psi0|psiGS>| = ", np.abs(np.vdot(psi_GS, psi0)))
+
 
 # Exact simulation
 T = 80

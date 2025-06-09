@@ -11,6 +11,7 @@ step_Lindblad: one step simulation for Lindbladian
 Lindblad_simulation: Lindblad simulation
 """
 
+from functools import reduce
 import numpy as np  # generic math functions
 import scipy.sparse
 import scipy.linalg as la
@@ -20,6 +21,7 @@ from scipy.linalg import expm
 from numpy import pi
 from numpy.fft import fft
 from time import time
+import pickle
 
 
 def is_unitary(U, tol=1e-10):
@@ -141,6 +143,8 @@ class Lindblad:
         """
         Propagate one step of the dilated jump operator in a batch.
         """
+        pickle_condition = True
+
         num_batch = psi.shape[1]
         if not intorder in {1, 2}:
             raise ValueError("intorder must be 1 or 2.")
@@ -269,7 +273,7 @@ class Lindblad:
                     )
                     ops.append(np.kron(np.identity(2), self.eHT.conj().T))
                     ops.append(np.kron(np.identity(2), self.eHT.conj().T))
-                    ops.append(["r"])
+
         for ir in range(num_batch):  # sampling of the ancillary state
             prob = la.norm(psi_t_batch[Ns:, ir]) ** 2
             if dice[ir] <= prob:
@@ -284,6 +288,12 @@ class Lindblad:
 
         return psi, ops
 
+    def save_dilated_K(self, ops, path):
+        result = reduce(np.matmul, reversed(ops))
+        with open(path, "wb") as f:
+            pickle.dump(result, f)
+        print(f"Unitary saved at {path}")
+
     def Lindblad_simulation(
         self, T, num_t, num_segment, psi0, num_rep, S_s, M_s, psi_GS=[], intorder=2
     ):
@@ -294,6 +304,7 @@ class Lindblad:
         order Trotter (intorder).  In particular, the first order Trotter method
         enables propagation with positive time.
         """
+        pickle_condition = True
         all_gates = (
             []
         )  # extract the unitaries here of the full circuit, (e^-iHt/T e^-iKt/T)^T
@@ -346,7 +357,14 @@ class Lindblad:
                 flip_dice[it, :],
                 1,
             )
+
             all_gates.extend(ops)
+            if pickle_condition == True:
+                path = "data/TFIM3_KTilde.pickle"
+                self.save_dilated_K(ops, path)
+
+                pickle_condition = False
+
             rho_hist[:, :, it + 1] = (
                 np.einsum("in,jn->ij", psi_all, psi_all.conj()) / num_rep
             )  # taking average to get \rho_n
