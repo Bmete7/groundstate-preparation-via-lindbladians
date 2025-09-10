@@ -389,7 +389,7 @@ class Lindblad:
             psi_all = eHtau @ psi_all
 
             all_gates.append(np.kron(np.identity(2), eHtau))
-
+            # ancilla appended in index 0
             ALL_PICKLED_K.append(
                 np.kron(np.identity(2), eHtau)
             )  # ALL_PICKLED_K, gate index 1 + num_t * 2
@@ -424,7 +424,7 @@ class Lindblad:
 
         if pickle_condition == True:
             ## This file incldues the entire circuit of the Lindblad simulation-
-            path = generate_all_pickled_K(L)
+            path = generate_all_pickled_K(L, num_t)
             self.save_dilated_K(ALL_PICKLED_K, path)
 
             pickle_condition = False

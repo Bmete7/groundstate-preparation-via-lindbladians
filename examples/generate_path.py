@@ -9,7 +9,7 @@ def return_current_time():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
 
-def generate_all_pickled_K(L: int):
+def generate_all_pickled_K(L: int, reps: int):
     """Given the system size L, generate the path to save all pickled K_tilde matrices.
 
     Args:
@@ -17,11 +17,11 @@ def generate_all_pickled_K(L: int):
     """
     cwd = os.getcwd()  # get current working directory
 
-    path = f"data/TFIM_{L}_ALL_PICKLED_K_{return_current_time()}.pickle"
+    path = f"data/TFIM_{L}_{reps}_ALL_PICKLED_K_{return_current_time()}.pickle"
     return os.path.join(cwd, path)
 
 
-def generate_qasm_path(L: int):
+def generate_qasm_path(L: int, reps: int):
     """Given the system size L, generate the path to save the QASM file.
 
     Args:
@@ -30,11 +30,11 @@ def generate_qasm_path(L: int):
 
     cwd = os.getcwd()  # get current working directory
 
-    path = f"data/output{L}_qubits.qasm"
+    path = f"data/output{L}_{reps}_qubits.qasm"
     return os.path.join(cwd, path)
 
 
-def generate_bqskit_output_path(L: int):
+def generate_bqskit_output_path(L: int, reps: int):
     """Given the system size L, generate the path to save the BQSkIT output file.
 
     Args:
@@ -42,7 +42,7 @@ def generate_bqskit_output_path(L: int):
     """
     cwd = os.getcwd()  # get current working directory
 
-    path = f"data/bqskit{L}_qubits.qasm"
+    path = f"data/bqskit{L}_{reps}_qubits.qasm"
     return os.path.join(cwd, path)
 
 
@@ -79,4 +79,12 @@ def generate_psi_GS_path(L: int):
     cwd = os.getcwd()  # get current working directory
 
     path = f"data/TFIM_{L}_psi_GS_{return_current_time()}.npy"
+    return os.path.join(cwd, path)
+
+
+def generate_experiment_config():
+    """Generate the path to save the experiment configuration file."""
+    cwd = os.getcwd()  # get current working directory
+
+    path = f"data/experiment.json"
     return os.path.join(cwd, path)

@@ -3,7 +3,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 import pickle
 import time
-from typing import Callable, Any
+from typing import Callable, Any, Tuple
 from functools import wraps
 import math
 from qiskit.circuit.library import UnitaryGate
@@ -101,14 +101,14 @@ class Unitary:
     _qasm_name: str = "dilated_expK"
 
     def __init__(self, file_path: str):
-        self.U = self.load_unitary(file_path)
+        self.U, self.U_raw = self.load_unitary(file_path)
 
         try:
             self._num_qubits = int(math.log2(self.U.shape[0]))
         except:
             self._num_qubits = int(math.log2(self.U[0].shape[0]))
 
-    def load_unitary(self, file_path: str) -> np.ndarray:
+    def load_unitary(self, file_path: str) -> Tuple[np.ndarray, np.ndarray]:
         """Given a file_path as a pickle, save it as a matrix
 
         Args:
@@ -121,8 +121,8 @@ class Unitary:
         with open(file_path, "rb") as f:
             U = pickle.load(f)  # get all the quantum gates in a list
         if type(U) == list:
-            U = reduce(lambda a, b: b @ a, U)  ## TODO Remove reverse
-        return U  # TODO Change this to return all the gates in a list
+            U_processed = reduce(lambda a, b: b @ a, U)  ## TODO Remove reverse
+        return U_processed, U  # TODO Change this to return all the gates in a list
 
     @property
     def num_qubits(self) -> int:
@@ -259,3 +259,41 @@ def compile_circuit(
         print(f"-----------------------------------")
 
     return circuit, compiled_circuit
+
+
+def create_ancilla_circuit(
+    qc: QuantumCircuit, ancilla_qubit_idx: int
+) -> QuantumCircuit:
+
+    return qc
+
+
+@time_wrapper
+def generate_full_lindbladian_circuit(
+    U: Unitary, reset_frequency: int
+) -> QuantumCircuit:
+    if isinstance(U.U_raw, list):
+        matrices = U.U_raw
+    else:
+        matrices = [U.U_raw]
+
+    num_qubits = U.num_qubits + reset_frequency + 1
+    qc: QuantumCircuit = QuantumCircuit(num_qubits, U.num_qubits)
+    swap_ctr = 0
+
+    for step, matrix in enumerate(matrices):
+        print(f"steps: {step}")
+        unitary_gate = UnitaryGate(matrix)
+        qc.append(unitary_gate, list(range(U.num_qubits)))
+
+        if (step + 1) % 2 == 0 and step > 0:
+            swap_ctr += 1
+            qc.measure(0, 0)
+            print(f"swap_ctr: {swap_ctr}")
+            print(f"swapping qubits {0} and {U.num_qubits + swap_ctr}")
+            qc.swap(0, U.num_qubits + swap_ctr)
+    for i in range(U.num_qubits):
+        if i != 0:
+            qc.measure(i, i)
+    print(qc.draw())
+    return qc

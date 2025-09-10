@@ -1,4 +1,6 @@
 import numpy as np
+import json
+from generate_path import generate_experiment_config
 
 
 def partial_trace(
@@ -32,3 +34,20 @@ def fresh_ancilla_rho(rho: np.ndarray) -> np.ndarray:
     """
     ancilla = np.array([[1], [0]], dtype=complex) @ np.array([[1, 0]], dtype=complex)
     return np.kron(ancilla, rho)
+
+
+def load_experiment_config() -> tuple[int, int]:
+    """Load experiment configuration from a JSON file.
+
+    Args:
+        path (str): The path to the JSON configuration file.
+
+    Returns:
+        dict: The loaded configuration as a dictionary.
+    """
+    path = generate_experiment_config()
+    with open(path, "r") as f:
+        config = json.load(f)
+    L = config["L"]
+    reps = config["reps"]
+    return L, reps

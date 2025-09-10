@@ -25,9 +25,11 @@ from extract_unitaries import (
     calculate_approximation_error,
     reverse_qubit_order,
     phase_corrected_frobenius_norm,
+    generate_full_lindbladian_circuit,
 )
+from utils import load_experiment_config
 
-L = 2
+L, reps = load_experiment_config()
 
 from utils import fresh_ancilla_rho, partial_trace
 
@@ -38,7 +40,7 @@ basis_gates = [
     "swap",
 ]
 
-all_matrices = np.load(generate_all_pickled_K(L), allow_pickle=True)
+all_matrices = np.load(generate_all_pickled_K(L, reps), allow_pickle=True)
 
 psi_0 = np.load(generate_psi_0_path(L), allow_pickle=True) + 0j
 psi_GS = (
@@ -96,16 +98,20 @@ plt.show()
 
 def main(L: int):
 
-    K_tilde_path = generate_all_pickled_K(L)
-    qasm_path = generate_qasm_path(L)
-    bqskit_output_path = generate_bqskit_output_path(L)
+    K_tilde_path = generate_all_pickled_K(L, reps)
+    qasm_path = generate_qasm_path(L, reps)
+    bqskit_output_path = generate_bqskit_output_path(L, reps)
     qasm_generated = False
     print(f"Processing {K_tilde_path}")
     U = Unitary(K_tilde_path)
-    print(f" len {len(U.U)}")
-    print(f"Number of qubits: {U.U[0].shape}")
+
+    print(f"Unitary dimensions: {U.U[0].shape}")
 
     circuit = generate_qiskit_circuit_from_unitary(U)
+    circuit_with_fresh_ancillas = generate_full_lindbladian_circuit(
+        U, reset_frequency=reps
+    )
+    input("Press Enter to continue...")
     circuit = transpile_qiskit(circuit, basis_gates)
     if not qasm_generated:
         save_qiskit_as_qasm(circuit, qasm_path)
