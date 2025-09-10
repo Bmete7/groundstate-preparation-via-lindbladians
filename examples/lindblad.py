@@ -11,6 +11,7 @@ step_Lindblad: one step simulation for Lindbladian
 Lindblad_simulation: Lindblad simulation
 """
 
+from functools import reduce
 import numpy as np  # generic math functions
 import scipy.sparse
 import scipy.linalg as la
@@ -20,6 +21,14 @@ from scipy.linalg import expm
 from numpy import pi
 from numpy.fft import fft
 from time import time
+import pickle
+from generate_path import generate_all_pickled_K, return_current_time
+import os
+from functools import reduce
+
+VERBOSE = False  # if True, print out the details of the simulation
+
+ALL_PICKLED_K = []  # list of all pickled K_tilde matrices
 
 
 def is_unitary(U, tol=1e-10):
@@ -141,6 +150,8 @@ class Lindblad:
         """
         Propagate one step of the dilated jump operator in a batch.
         """
+        pickle_condition = True
+
         num_batch = psi.shape[1]
         if not intorder in {1, 2}:
             raise ValueError("intorder must be 1 or 2.")
@@ -174,22 +185,6 @@ class Lindblad:
         braket01 = np.array([[0, 1], [0, 0]])
 
         # extract the unitaries of the circuit
-        exp_Hs = []
-        for j in range(Ns_contour):
-            A_sl = (
-                la.expm(1j * s_contour[j] * self.H_op)
-                @ self.A_op
-                @ la.expm(-1j * s_contour[j] * self.H_op)
-            )
-            w_l = tau_s
-            if (j == 0) or (j == Ns_contour - 1):
-                w_l /= 2
-            H_sl = np.kron(braket01, F_contour[j].conj() * A_sl * w_l) + np.kron(
-                braket10, F_contour[j] * A_sl * w_l
-            )
-            K_tilde += H_sl
-
-            exp_Hs.append(la.expm(-1j * tau * H_sl))
 
         ######
         for i in range(Ns_contour):
@@ -219,6 +214,34 @@ class Lindblad:
 
         # ---start simulation
 
+        exp_Hs = []
+        for j in range(Ns_contour):
+            A_sl = (
+                la.expm(1j * s_contour[j] * self.H_op)
+                @ self.A_op
+                @ la.expm(-1j * s_contour[j] * self.H_op)
+            )
+
+            X = np.array([[0j, 1], [1, 0]])
+            Y = np.array([[0j, -1j], [1j, 0]])
+
+            w_l = tau_s
+            if (j == 0) or (j == Ns_contour - 1):
+                w_l /= 2
+
+            sigma_l = w_l * (X + F_contour[j].real + Y * F_contour[j].imag)
+
+            H_sl = np.kron(sigma_l, A_sl)  # H_l in the Lindblad operator
+            # H_sl = np.kron(braket01, F_contour[j].conj() * A_sl * w_l) + np.kron(
+            #     braket10, F_contour[j] * A_sl * w_l
+            # )
+
+            K_tilde += H_sl
+
+            # exp_Hs.append(la.expm(-1j * tau * H_sl))
+            exp_Hs.append(H_sl)
+        expected_Ktilde = la.expm(-1j * tau_s * K_tilde)
+
         psi_t_batch = np.zeros((2 * Ns, num_batch), dtype=complex)
         psi_t_batch.fill(0j)
         psi_t_batch[:Ns, :] = psi
@@ -245,31 +268,50 @@ class Lindblad:
             else:  # first order
                 # only #left-ordered product
                 for i in range(int(Ns_contour)):
+                    op_step = []
+
                     VK = np.kron(VF_contour[i, :, :], psi_A)
 
                     psi_t_batch = VK.conj().T @ psi_t_batch
-                    ops.append(VK.conj().T)
+
+                    op_step.append(VK.conj().T)
                     # pointwise multiplication
                     psi_t_batch *= ZA_dilate[i, :, :]
-                    ops.append(np.diagflat(ZA_dilate[i, :, :]))
+                    op_step.append(np.diagflat(ZA_dilate[i, :, :]))
                     psi_t_batch = VK @ psi_t_batch
-                    ops.append(VK)
+                    op_step.append(VK)
                     psi_t_batch = np.kron(np.identity(2), eHt) @ psi_t_batch
-                    ops.append(np.kron(np.identity(2), eHt))
+                    op_step.append(np.kron(np.identity(2), eHt))
+                    overall_matrix = reduce(
+                        lambda a, b: a @ b, reversed(op_step)
+                    )  # [U1, U2, ..., Un]  → apply:  Un @ ... @ U2 @ U1 @ psi
+
+                    ops.append(overall_matrix)
                 # rewind the time. This seems quite important in
                 # practice, which is consistent with the (unexplained)
                 # importance of adding the coherent contribution.
                 is_rewind = True
                 if is_rewind:
+                    final_op_step = []
                     psi_t_batch = (
                         np.kron(np.identity(2), self.eHT.conj().T) @ psi_t_batch
                     )
                     psi_t_batch = (
                         np.kron(np.identity(2), self.eHT.conj().T) @ psi_t_batch
                     )
-                    ops.append(np.kron(np.identity(2), self.eHT.conj().T))
-                    ops.append(np.kron(np.identity(2), self.eHT.conj().T))
-                    ops.append(["r"])
+                    final_op_step.append(np.kron(np.identity(2), self.eHT.conj().T))
+                    final_op_step.append(np.kron(np.identity(2), self.eHT.conj().T))
+                    overall_final_step_matrix = reduce(
+                        lambda a, b: a @ b, reversed(final_op_step)
+                    )  # [U1, U2, ..., Un]  → apply:  Un @ ... @ U2 @ U1 @ psi
+                    ops.append(overall_final_step_matrix)
+
+        overall_matrix_K_tilde = reduce(lambda a, b: a @ b, reversed(exp_Hs))
+        overall_matrix_algorithm = reduce(lambda a, b: a @ b, reversed(ops))
+
+        # np.save("data
+        ALL_PICKLED_K.append(overall_matrix_algorithm)  # gate index 2 + num_t * 2
+
         for ir in range(num_batch):  # sampling of the ancillary state
             prob = la.norm(psi_t_batch[Ns:, ir]) ** 2
             if dice[ir] <= prob:
@@ -284,8 +326,14 @@ class Lindblad:
 
         return psi, ops
 
+    def save_dilated_K(self, ops, path):
+        # result = reduce(np.matmul, reversed(ops))
+
+        with open(path, "wb") as f:
+            pickle.dump(ops, f)
+
     def Lindblad_simulation(
-        self, T, num_t, num_segment, psi0, num_rep, S_s, M_s, psi_GS=[], intorder=2
+        self, T, num_t, num_segment, psi0, num_rep, S_s, M_s, L, psi_GS=[], intorder=2
     ):
         """
         Lindblad simulation
@@ -294,15 +342,16 @@ class Lindblad:
         order Trotter (intorder).  In particular, the first order Trotter method
         enables propagation with positive time.
         """
+        pickle_condition = True
         all_gates = (
             []
         )  # extract the unitaries here of the full circuit, (e^-iHt/T e^-iKt/T)^T
         H = self.H_op
         # Simulation parameter
-        tau = T / num_t
+        tau = T / num_t  # e^-iHtau e-iKtau
         time_series = np.arange(num_t + 1) * tau
         Ns = psi0.shape[0]  # length of the state
-        tau_s = S_s / M_s  # time step for integral discretization
+        tau_s = S_s / M_s  # time step for integral discretization e-iKtau ~ e-IHs_s A
         eHtau = la.expm(-1j * tau * H)
         self.eHt = la.expm(-1j * tau_s * self.H_op)  # short time Hamiltonian simulation
         self.eHT = la.expm(-1j * S_s * self.H_op)
@@ -329,11 +378,21 @@ class Lindblad:
         psi_all = np.zeros((Ns, num_rep), dtype=complex)  # List of psi_n
         for i in range(num_rep):
             psi_all[:, i] = self.eHT.conj().T @ psi0.copy()
-            all_gates.append(np.kron(np.identity(2), self.eHT.conj().T))
+
+        all_gates.append(np.kron(np.identity(2), self.eHT.conj().T))
+        ALL_PICKLED_K.append(
+            np.kron(np.identity(2), self.eHT.conj().T)
+        )  # ALL_PICKLED_K, gate index 0
+
         rho_hist[:, :, 0] = np.outer(psi_all[:, 0], psi_all[:, 0].conj().T)
         for it in range(num_t):
             psi_all = eHtau @ psi_all
+
             all_gates.append(np.kron(np.identity(2), eHtau))
+
+            ALL_PICKLED_K.append(
+                np.kron(np.identity(2), eHtau)
+            )  # ALL_PICKLED_K, gate index 1 + num_t * 2
             time_H[it + 1] = time_H[it] + tau
             psi_all, ops = self.step_Lindblad(
                 psi_all,
@@ -346,7 +405,9 @@ class Lindblad:
                 flip_dice[it, :],
                 1,
             )
-            all_gates.extend(ops)
+
+            all_gates.append(ops)
+
             rho_hist[:, :, it + 1] = (
                 np.einsum("in,jn->ij", psi_all, psi_all.conj()) / num_rep
             )  # taking average to get \rho_n
@@ -360,6 +421,15 @@ class Lindblad:
             avg_pGS_hist[it + 1, :] = (
                 np.abs(np.einsum("in,i->n", psi_all.conj(), psi_GS)) ** 2
             )  # Calculating overlap
+
+        if pickle_condition == True:
+            ## This file incldues the entire circuit of the Lindblad simulation-
+            path = generate_all_pickled_K(L)
+            self.save_dilated_K(ALL_PICKLED_K, path)
+
+            pickle_condition = False
+
         avg_energy = np.mean(avg_energy_hist, axis=1)
         avg_pGS = np.mean(avg_pGS_hist, axis=1)
+
         return time_series, avg_energy, avg_pGS, time_H, rho_hist, all_gates
