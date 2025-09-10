@@ -178,4 +178,4 @@ cython_debug/
 .vscode/
 
 # 3rd party libraries
-qmapy/
+qmap/
