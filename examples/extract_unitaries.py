@@ -24,13 +24,7 @@ from bqskit.passes import (
     UnfoldPass,
     GeneralSQDecomposition,
 )
-
-basis_gates = [
-    "rx",
-    "rz",
-    "cz",
-    "swap",
-]
+from functools import reduce
 
 
 def hilbert_schmidt(U, V):
@@ -44,7 +38,7 @@ def average_gate_infidelity(U, V):
     return 1 - (d / (d + 1)) * (1 - fidelity)
 
 
-def phase_corrected_frobenius_norm(U, V, ord="fro"):
+def phase_corrected_frobenius_norm(U: np.ndarray, V: np.ndarray, ord="fro"):
     """Given 2 matrices, calculate if there is a global phase difference (i.e. -1), and then calculate the norm of the difference between two operators
 
     Args:
@@ -57,7 +51,7 @@ def phase_corrected_frobenius_norm(U, V, ord="fro"):
     """
     phase = np.angle(np.trace(np.dot(np.conj(U.T), V)))
     V_phase_corrected = V * np.exp(-1j * phase)
-    return np.linalg.norm(U, V_phase_corrected, ord=ord)
+    return np.linalg.norm(U - V_phase_corrected, ord=ord)
 
 
 def calculate_approximation_error(U, V, callback):
@@ -73,16 +67,46 @@ def calculate_approximation_error(U, V, callback):
     return callback(U, V)
 
 
+def reverse_qubit_order(U: np.ndarray) -> np.ndarray:
+    """Reverse the qubit order in a unitary matrix using NumPy.
+
+    Args:
+        U: A (2^n x 2^n) unitary matrix.
+
+    Returns:
+        A new unitary matrix with reversed qubit ordering.
+    """
+    dim = U.shape[0]
+    n = int(np.log2(dim))
+    assert 2**n == dim, "Input must be a 2^n x 2^n matrix"
+
+    # Reshape into tensor: (2, 2, ..., 2) x (2, 2, ..., 2)
+    U_tensor = U.reshape([2] * n * 2)
+
+    # Reverse qubit order by reversing the axes
+    axes = list(range(2 * n))
+    perm = list(reversed(axes[:n])) + list(reversed(axes[n:]))
+
+    U_reordered = np.transpose(U_tensor, axes=perm)
+
+    # Flatten back into matrix
+    return U_reordered.reshape(dim, dim)
+
+
 class Unitary:
-    _num_qubits = None
-    _num_params = 0
-    U = None
-    _name = "dilated_expK"
-    _qasm_name = "dilated_expK"
+    _num_qubits: int = 0
+    _num_params: int = 0
+    U: np.ndarray = None
+    _name: str = "dilated_expK"
+    _qasm_name: str = "dilated_expK"
 
     def __init__(self, file_path: str):
         self.U = self.load_unitary(file_path)
-        self._num_qubits = int(math.log2(self.U.shape[0]))
+
+        try:
+            self._num_qubits = int(math.log2(self.U.shape[0]))
+        except:
+            self._num_qubits = int(math.log2(self.U[0].shape[0]))
 
     def load_unitary(self, file_path: str) -> np.ndarray:
         """Given a file_path as a pickle, save it as a matrix
@@ -96,14 +120,16 @@ class Unitary:
 
         with open(file_path, "rb") as f:
             U = pickle.load(f)  # get all the quantum gates in a list
-        return U
+        if type(U) == list:
+            U = reduce(lambda a, b: b @ a, U)  ## TODO Remove reverse
+        return U  # TODO Change this to return all the gates in a list
 
     @property
-    def num_qubits(self):
+    def num_qubits(self) -> int:
         return self._num_qubits
 
     @property
-    def num_params(self):
+    def num_params(self) -> int:
         return self._num_params
 
 
@@ -151,12 +177,18 @@ def generate_qiskit_circuit_from_unitary(U: Unitary) -> QuantumCircuit:
         QuantumCircuit: _description_
     """
     qubits = U.num_qubits
-
-    assert U.U.shape[0] == 2**qubits
+    try:
+        assert U.U.shape[0] == 2**qubits
+    except:
+        assert U.U[0].shape[0] == 2**qubits
     qc = QuantumCircuit(qubits, qubits)
-    Ugate = UnitaryGate(U.U)
-
-    qc.append(Ugate, list(range(0, qubits)))
+    if type(U.U) == list:
+        Ugate = [UnitaryGate(U_s) for U_s in U.U]
+        for i, U_s in enumerate(Ugate):
+            qc.append(U_s, list(range(0, qubits)))
+    else:
+        Ugate = UnitaryGate(U.U)
+        qc.append(Ugate, list(range(0, qubits)))
     return qc
 
 
@@ -171,7 +203,7 @@ def transpile_qiskit(circuit: QuantumCircuit, basis_gates: list) -> QuantumCircu
     Returns:
         QuantumCircuit: Decomposed quantum circuit
     """
-    circuit = transpile(circuit, basis_gates=basis_gates, optimization_level=3)
+    circuit = transpile(circuit, basis_gates=basis_gates, optimization_level=1)
     return circuit
 
 
@@ -185,8 +217,8 @@ def save_qiskit_as_qasm(
         output_path (str, optional): Path to the qasm file to save. Defaults to "data/output.qasm".
     """
     f = open(output_path, "w")
-
     dump(circuit, f)
+    print("Qiskit qasm output saved to:", output_path)
 
 
 @time_wrapper
@@ -226,48 +258,4 @@ def compile_circuit(
             print(f"{gate} Count:", compiled_circuit.count(gate))
         print(f"-----------------------------------")
 
-    # workflow = [
-    #     QSearchSynthesisPass(),
-    # ]
-    # with Compiler() as compiler:
-    #     synthesized_circuit = compiler.compile(circuit, workflow)
-
-    # if verbose:
-    #     print(f"-----------------------------------")
-    #     print(f"Gate counts after BQSKit Optimization")
-    #     for gate in synthesized_circuit.gate_set:
-    #         print(f"{gate} Count:", synthesized_circuit.count(gate))
-    #     print(f"-----------------------------------")
-    # input("Succeeded")
     return circuit, compiled_circuit
-
-
-for i in range(2, 4):
-    K_tilde_path = "data/TFIM" + str(i) + "_KTilde.pickle"
-    qasm_path = "data/output" + str(i) + ".qasm"
-    bqskit_output_path = "data/bqskit" + str(i) + ".qasm"
-    qasm_generated = False
-    print(f"Processing {K_tilde_path}")
-    U = Unitary(K_tilde_path)
-    # print(U)
-    # dilated_K_file_path = "data/dilated_expK.pickle"
-    # qasm_path = "data/output.qasm"
-    # bqskit_output_path = "data/bqskit.qasm"
-
-    circuit = generate_qiskit_circuit_from_unitary(U)
-    circuit = transpile_qiskit(circuit, basis_gates)
-    if not qasm_generated:
-        save_qiskit_as_qasm(circuit, qasm_path)
-    circuit, compiled_circuit = compile_circuit(
-        qasm_path, bqskit_output_path, verbose=True
-    )
-    original_U = circuit.get_unitary()
-    compiled_U = compiled_circuit.get_unitary()
-    approx_error = calculate_approximation_error(
-        original_U, compiled_U, phase_corrected_frobenius_norm
-    )
-    print(f"Synthesis approximation error: {approx_error}")
-    star = "*"
-
-    print(original_U - compiled_U)
-    print(f"{star * 50}")

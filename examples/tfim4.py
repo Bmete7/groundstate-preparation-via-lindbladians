@@ -5,6 +5,8 @@ Test Lindblad based method for ground state preparation for TFIM-4 model.
 
 import sys
 
+from generate_path import generate_psi_0_path, generate_psi_GS_path
+
 print("Python version:", sys.version)
 print("Sys path:", sys.path)
 
@@ -23,12 +25,12 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from qutip import Qobj, mesolve
 
-from lindblad import Lindblad
+from lindblad import Lindblad, return_current_time
 
 ##### define model parameters #####
 L = 2  # system size
 J = 1.0  # spin zz interaction
-g = 1.2  # z magnetic field strength
+g = 2.2  # z magnetic field strength
 ##### define spin model
 
 
@@ -54,6 +56,8 @@ H_mat = np.array(H.todense())
 E_H, psi_H = la.eigh(H_mat)
 gap = E_H[1] - E_H[0]
 print("gap = ", gap)
+
+
 a = 2.5 * la.norm(H_mat, 2)
 da = 0.5 * la.norm(H_mat, 2)
 b = gap
@@ -78,8 +82,11 @@ psi0 = psi0 / la.norm(psi0)
 print("|<psi0|psiGS>| = ", np.abs(np.vdot(psi_GS, psi0)))
 
 
-# Exact simulation
-T = 80
+np.save(generate_psi_0_path(L), psi0)
+np.save(generate_psi_GS_path(L), psi_GS)
+
+# Exact simulation e^-iLT ~trotterization (e^-iHt e^iKt)T/t
+T = 100
 num_t = int(T)
 times = np.arange(num_t + 1) * (T / num_t)
 H_obj = Qobj(H_mat)
@@ -98,7 +105,7 @@ num_segment = 1  # discrete segment
 num_rep = 1  # average repetition (used to recover \rho_n after tracing out)
 times_l, avg_energy_l, avg_pGS_l, time_H_l, rho_all_l, all_gates = (
     lb.Lindblad_simulation(
-        T, num_t, num_segment, psi0, num_rep, S_s, M_s, psi_GS, intorder=2
+        T, num_t, num_segment, psi0, num_rep, S_s, M_s, L, psi_GS, intorder=2
     )
 )
 
@@ -147,3 +154,6 @@ plt.xticks(fontsize=25)
 plt.yticks(fontsize=25)
 plt.legend(fontsize=30, loc="lower right")
 plt.show()
+
+
+print("Final fidelity with ground state:", avg_pGS_l[-1], avg_pGS_e[-1])
