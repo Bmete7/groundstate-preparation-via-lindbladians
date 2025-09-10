@@ -26,9 +26,10 @@ import matplotlib.pyplot as plt
 from qutip import Qobj, mesolve
 
 from lindblad import Lindblad, return_current_time
+from utils import load_experiment_config
 
 ##### define model parameters #####
-L = 2  # system size
+L = load_experiment_config()[0]
 J = 1.0  # spin zz interaction
 g = 2.2  # z magnetic field strength
 ##### define spin model
@@ -86,7 +87,7 @@ np.save(generate_psi_0_path(L), psi0)
 np.save(generate_psi_GS_path(L), psi_GS)
 
 # Exact simulation e^-iLT ~trotterization (e^-iHt e^iKt)T/t
-T = 100
+T = load_experiment_config()[1]  # Trotterization time
 num_t = int(T)
 times = np.arange(num_t + 1) * (T / num_t)
 H_obj = Qobj(H_mat)
@@ -156,4 +157,6 @@ plt.legend(fontsize=30, loc="lower right")
 plt.show()
 
 
-print("Final fidelity with ground state:", avg_pGS_l[-1], avg_pGS_e[-1])
+print(
+    f"Final fidelity with ground state: for circuit: {avg_pGS_l[-1]}‚ and exact simulation {avg_pGS_e[-1]}",
+)
