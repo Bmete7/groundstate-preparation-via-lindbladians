@@ -1,0 +1,23 @@
+from qiskit import QuantumCircuit
+from mqt.qmap import compile
+
+from mqt.qmap.na.zoned import ZonedCompiler, ZonedArchitecture
+circ = QuantumCircuit(3)
+circ.h(0)
+circ.cz(0, 1)
+circ.cz(0, 2)
+circ.h(0)
+arch = ZonedArchitecture(
+    num_zones=1,
+    n_rows_storage=1,
+    n_rows_entangle=1,
+    n_cols=3,
+    max_offset=1  # max movement offset within each zone
+)
+
+compiler = ZonedCompiler(
+    architecture=arch,
+    preserve_italics=False,  # optional flags, e.g. preserve ordering
+    shield_idling=True
+)
+mapped_circ, mapping_result = compiler.compile(circ)
