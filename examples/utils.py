@@ -36,7 +36,7 @@ def fresh_ancilla_rho(rho: np.ndarray) -> np.ndarray:
     return np.kron(ancilla, rho)
 
 
-def load_experiment_config() -> tuple[int, int]:
+def load_experiment_config(data_path) -> tuple[int, int]:
     """Load experiment configuration from a JSON file.
 
     Args:
@@ -45,7 +45,7 @@ def load_experiment_config() -> tuple[int, int]:
     Returns:
         dict: The loaded configuration as a dictionary.
     """
-    path = generate_experiment_config()
+    path = generate_experiment_config(data_path)
     with open(path, "r") as f:
         config = json.load(f)
     L = config["L"]

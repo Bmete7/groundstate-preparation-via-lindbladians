@@ -328,12 +328,22 @@ class Lindblad:
 
     def save_dilated_K(self, ops, path):
         # result = reduce(np.matmul, reversed(ops))
-
-        with open(path, "wb") as f:
-            pickle.dump(ops, f)
+        if not os.path.exists(path):
+            with open(path, "wb") as f:
+                pickle.dump(ops, f)
 
     def Lindblad_simulation(
-        self, T, num_t, num_segment, psi0, num_rep, S_s, M_s, L, psi_GS=[], intorder=2
+        self,
+        T: int,
+        num_t: int,
+        num_segment: int,
+        psi0: np.ndarray,
+        num_rep: int,
+        S_s: float,
+        M_s: int,
+        data_path: str = "",
+        psi_GS: np.ndarray = [],
+        intorder: int = 2,
     ):
         """
         Lindblad simulation
@@ -341,6 +351,28 @@ class Lindblad:
         This uses the deterministic propagation with first or second
         order Trotter (intorder).  In particular, the first order Trotter method
         enables propagation with positive time.
+
+        Args:
+        T (float): total simulation time
+        num_t (int): number of time steps
+        num_segment (int): number of segments for discretizing the integral
+        psi0 (np.ndarray): initial state
+        num_rep (int): number of repetitions for averaging
+        S_s (float): integral limit
+        M_s (int): number of integral discretization points
+        L (int): system size
+        psi_GS (np.ndarray): ground state for overlap calculation
+        intorder (int): order of the integration (1 or 2)
+        __________________________
+        Returns:
+
+        time_series (np.ndarray): time points
+        avg_energy (np.ndarray): average energy at each time point
+        avg_pGS (np.ndarray): average overlap with ground state at each time point
+        time_H (np.ndarray): total Hamiltonian simulation time at each time point
+        rho_hist (np.ndarray): density matrix history
+        all_gates (list): list of all gates used in the simulation
+
         """
         pickle_condition = True
         all_gates = (
@@ -424,7 +456,7 @@ class Lindblad:
 
         if pickle_condition == True:
             ## This file incldues the entire circuit of the Lindblad simulation-
-            path = generate_all_pickled_K(L, num_t)
+            path = generate_all_pickled_K(data_path)
             self.save_dilated_K(ALL_PICKLED_K, path)
 
             pickle_condition = False

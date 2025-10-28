@@ -9,82 +9,71 @@ def return_current_time():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
 
-def generate_all_pickled_K(L: int, reps: int):
+def generate_all_pickled_K(data_path: str):
     """Given the system size L, generate the path to save all pickled K_tilde matrices.
 
     Args:
         L (int): The system size.
+        reps (int): The number of repetitions.
+        data_path (str): The root data path to save the file.
     """
-    cwd = os.getcwd()  # get current working directory
-
-    path = f"data/TFIM_{L}_{reps}_ALL_PICKLED_K_{return_current_time()}.pickle"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/dilated_unitaries.pickle"
+    return os.path.join(path)
 
 
-def generate_qasm_path(L: int, reps: int):
+def generate_qasm_path(data_path: str):
     """Given the system size L, generate the path to save the QASM file.
 
     Args:
         L (int): The system size.
     """
 
-    cwd = os.getcwd()  # get current working directory
-
-    path = f"data/output{L}_{reps}_qubits.qasm"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/output_original_circuit.qasm"
+    return os.path.join(path)
 
 
-def generate_bqskit_output_path(L: int, reps: int):
+def generate_bqskit_output_path(data_path: str):
     """Given the system size L, generate the path to save the BQSkIT output file.
 
     Args:
         L (int): The system size.
     """
-    cwd = os.getcwd()  # get current working directory
 
-    path = f"data/bqskit{L}_{reps}_qubits.qasm"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/bqskit_circuit.qasm"
+    return os.path.join(path)
 
 
-def generate_fidelity_plot_path():
+def generate_fidelity_plot_path(data_path: str):
     """Generate the path to save the fidelity plot.
 
     Args:
         L (int): The system size.
     """
-    cwd = os.getcwd()  # get current working directory
-
-    path = "data/fidelity_plot.png"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/fidelity_plot.png"
+    return os.path.join(path)
 
 
-def generate_psi_0_path(L: int):
+def generate_psi_0_path(data_path: str):
     """Given the system size L, generate the path to save the initial state psi_0.
 
     Args:
         L (int): The system size.
     """
-    cwd = os.getcwd()  # get current working directory
-
-    path = f"data/TFIM_{L}_psi0_{return_current_time()}.npy"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/psi0.npy"
+    return os.path.join(path)
 
 
-def generate_psi_GS_path(L: int):
+def generate_psi_GS_path(data_path: str):
     """Given the system size L, generate the path to save the ground state psi_GS.
 
     Args:
         L (int): The system size.
     """
-    cwd = os.getcwd()  # get current working directory
-
-    path = f"data/TFIM_{L}_psi_GS_{return_current_time()}.npy"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/psi_GS.npy"
+    return os.path.join(path)
 
 
-def generate_experiment_config():
+def generate_experiment_config(data_path: str):
     """Generate the path to save the experiment configuration file."""
-    cwd = os.getcwd()  # get current working directory
-
-    path = f"data/experiment.json"
-    return os.path.join(cwd, path)
+    path = f"{data_path}/experiment.json"
+    return os.path.join(path)

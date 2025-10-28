@@ -121,7 +121,7 @@ class Unitary:
         with open(file_path, "rb") as f:
             U = pickle.load(f)  # get all the quantum gates in a list
         if type(U) == list:
-            U_processed = reduce(lambda a, b: b @ a, U)  ## TODO Remove reverse
+            U_processed = reduce(lambda a, b: b @ a, U)
         return U_processed, U  # TODO Change this to return all the gates in a list
 
     @property
@@ -186,6 +186,43 @@ def generate_qiskit_circuit_from_unitary(U: Unitary) -> QuantumCircuit:
         Ugate = [UnitaryGate(U_s) for U_s in U.U]
         for i, U_s in enumerate(Ugate):
             qc.append(U_s, list(range(0, qubits)))
+    else:
+        Ugate = UnitaryGate(U.U)
+        qc.append(Ugate, list(range(0, qubits)))
+    return qc
+
+
+@time_wrapper
+def generate_qiskit_circuit_from_unitary_with_swaps(
+    U: Unitary, N: int
+) -> QuantumCircuit:
+    """Given an NxN unitary matrix, generate a qiskit QuantumCircuit with SWAPs for ancillary qubits
+
+    Args:
+        U (Unitary): np.ndarray Unitary matrix
+        N (int): Total number of ancillas
+
+    Returns:
+        QuantumCircuit: _description_
+    """
+    raw_qubits = U.num_qubits
+    try:
+        assert U.U.shape[0] == 2**raw_qubits
+    except:
+        assert U.U[0].shape[0] == 2**raw_qubits
+    qubits = raw_qubits + N
+    qc = QuantumCircuit(qubits, qubits)
+    ancilla_idx = 0
+    if type(U.U_raw) == list:
+        Ugate = [UnitaryGate(U_s) for U_s in U.U_raw]
+        for i, U_s in enumerate(Ugate):
+            if (i % 2 == 1) and i > 1:
+                # Apply SWAPs before applying the unitary
+                for ancilla_idx in range(N):
+                    qc.swap(0, U.num_qubits + ancilla_idx)
+                    ancilla_idx += 1
+            qc.append(U_s, list(range(0, raw_qubits)))
+
     else:
         Ugate = UnitaryGate(U.U)
         qc.append(Ugate, list(range(0, qubits)))
